@@ -1,0 +1,117 @@
+import csv
+import numpy as np
+import matplotlib.pyplot as plt
+from sklearn.metrics import precision_recall_curve, auc
+
+def obtain_pr():
+    y_true = []
+    y_scores = []
+    
+    with open('results_big.csv', newline='') as csvfile:
+        reader = csv.reader(csvfile)
+        for row in reader:
+            p_hall = float(row[0])  # predicted probability
+            label = row[1]   # true label
+            
+            y_true.append(1 if label != "accurate" else 0)
+            y_scores.append(p_hall)
+    
+    precision, recall, _ = precision_recall_curve(y_true, y_scores)
+    
+    pr_auc = auc(recall, precision)  # AUC for PR curve
+    
+    plt.figure()
+    plt.plot(recall, precision, color='darkorange', lw=2, label=f'PR curve (AP = {pr_auc:.2f})')
+    plt.xlabel('Recall', fontsize=14)
+    plt.ylabel('Precision', fontsize=14)
+    plt.title('Precision-Recall Curve - WikiBio', fontsize=16)
+    plt.legend(loc='lower left', fontsize=12)
+    plt.grid()
+    plt.show()
+
+obtain_pr()
+
+
+def obtain_metrics():
+    with open('results_big.csv', newline='') as csvfile:
+        results = {}
+        for threshold in np.arange(0, 1, 0.05):
+            reader = csv.reader(csvfile)
+            metrics = {"true_positive": 0, "false_positive": 0, "true_negative": 0, "false_negative": 0}
+            correct = 0
+            total = 0
+            csvfile.seek(0)
+            for row in reader:
+                total += 1
+                p_hall = float(row[0])
+                label = row[1]
+
+                if label != "accurate":  # hallucination
+                    if p_hall < threshold:
+                        metrics["false_negative"] += 1
+                    else:
+                        metrics["true_positive"] += 1
+                        correct += 1
+                else:  # true
+                    if p_hall > threshold:
+                        metrics["false_positive"] += 1
+                    else:
+                        metrics["true_negative"] += 1
+                        correct += 1
+            
+            accuracy = correct / total
+
+            tp = metrics["true_positive"]
+            fn = metrics["false_negative"]
+            recall = tp / (tp + fn) if (tp + fn) > 0 else 0
+
+            fp = metrics["false_positive"]
+            precision = tp / (tp + fp) if (tp + fp) > 0 else 0
+
+            f1 = (2 * precision * recall) / (precision + recall) if (precision + recall) > 0 else 0
+
+            tn = metrics["true_negative"]
+            balanced_accuracy = 0.5 * ((tp / (tp + fn)) + (tn / (tn + fp))) if (tp + fn) > 0 and (tn + fp) > 0 else 0
+
+            results[threshold] = {
+                "accuracy": accuracy,
+                "precision": precision,
+                "recall": recall,
+                "f1": f1,
+                "balanced_accuracy": balanced_accuracy
+            }
+
+            print(f"Threshold: {threshold:.2f}")
+            print(f"Accuracy: {accuracy:.4f}")
+            print(f"Precision: {precision:.4f}")
+            print(f"Recall: {recall:.4f}")
+            print(f"F1 Score: {f1:.4f}")
+            print(f"Balanced Accuracy: {balanced_accuracy:.4f}")
+            print("-------------")
+            
+        max_f1_threshold = max(results, key=lambda t: results[t]["f1"])
+        best_f1_result = {max_f1_threshold: results[max_f1_threshold]}
+        
+        max_balanced_accuracy_threshold = max(results, key=lambda t: results[t]["balanced_accuracy"])
+        best_balanced_accuracy_result = {max_balanced_accuracy_threshold: results[max_balanced_accuracy_threshold]}
+        
+        print("Results for each threshold:")
+        print(results)
+        
+        print("Best threshold for F1 score:")
+        print(best_f1_result)
+        
+        print("Best threshold for Balanced Accuracy:")
+        print(best_balanced_accuracy_result)
+
+obtain_metrics()
+
+def test_duplicate_kgs():
+    with open('results_new.csv', newline='') as csvfile:
+        reader = csv.reader(csvfile)
+        for row in reader:
+            kg1 = row[2]
+            kg2 = row[3]
+            print(kg1 == kg2)
+
+# test_duplicate_kgs()
